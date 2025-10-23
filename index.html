@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Music Player</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="loading" style="display: none;"></div>
+        <div id="player">
+            <canvas id="visualizer"></canvas>
+            <div id="album-art-container">
+                <img id="album-art" src="" alt="Album Art">
+            </div>
+            <div id="track-info">
+                <div id="track-title"></div>
+                <div id="track-artist"></div>
+            </div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+            <div id="time-container">
+                <span id="current-time">0:00</span>
+                <span id="total-duration">0:00</span>
+            </div>
+            <div id="controls">
+                <button id="shuffle-btn">🔀</button>
+                <button id="prev-btn">⏮</button>
+                <button id="play-btn">▶️</button>
+                <button id="next-btn">⏭</button>
+                <button id="repeat-btn">🔁</button>
+            </div>
+            <div id="volume-container">
+                <span>🔉</span>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1">
+                <span>🔊</span>
+            </div>
+        </div>
+
+        <div id="search-container">
+            <input type="text" id="search-input" placeholder="Search playlist...">
+        </div>
+        <div id="playlist"></div>
+
+        <div id="admin" style="display: none;">
+            <h2>Admin Panel</h2>
+            <input type="file" id="file-input" accept="audio/*">
+            <button id="upload-btn">Upload</button>
+            <progress id="upload-progress" value="0" max="100" style="display: none;"></progress>
+        </div>
+    </div>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
