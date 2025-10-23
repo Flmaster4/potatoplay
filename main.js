@@ -3,7 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const supabaseUrl = 'https://ogmkthzbvdyrqwmjsxsr.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nbWt0aHpidmR5cnF3bWpzeHNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMjU0NTMsImV4cCI6MjA3NjgwMTQ1M30.kHXcO7Rewypic2qzWTBy_9LiU33aj2W2C2w_kxXeN14';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-    Telegram.WebApp.ready();
+    if (window.Telegram?.WebApp) {
+        Telegram.WebApp.ready();
+    }
 
     // --- DOM ELEMENTS ---
     const dom = {
@@ -21,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBar: document.getElementById('progress-bar'),
         currentTimeEl: document.getElementById('current-time'),
         totalDurationEl: document.getElementById('total-duration'),
-        playlistContainer: document.getElementById('playlist'),
+        playlistList: document.getElementById('playlist-list'),
+        searchPlaylistInput: document.getElementById('search-playlist-input'),
         volumeSlider: document.getElementById('volume-slider'),
         searchFavoritesInput: document.getElementById('search-favorites-input'),
         favoritesList: document.getElementById('favorites-list'),
@@ -53,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isPlaying: false,
         isShuffle: false,
         repeatMode: 'none',
-        user: Telegram.WebApp.initDataUnsafe?.user || null,
+        user: window.Telegram?.WebApp?.initDataUnsafe?.user || null,
         selectedAudioFile: null,
         selectedArtFile: null,
     };
@@ -65,8 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await Promise.all([fetchPlaylist(), fetchFavorites()]);
         setupEventListeners();
         validateUploadForm();
-        dom.uploadProgress.style.display = 'none';
-        audio.volume = dom.volumeSlider.value;
+        if(dom.uploadProgress) dom.uploadProgress.style.display = 'none';
+        if(dom.volumeSlider) audio.volume = dom.volumeSlider.value;
         showLoading(false);
     };
 
@@ -86,7 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pageName) return;
 
         dom.pages.forEach(page => page.classList.add('hidden'));
-        document.getElementById(pageName).classList.remove('hidden');
+        const pageToShow = document.getElementById(pageName);
+        if(pageToShow) pageToShow.classList.remove('hidden');
 
         dom.navBar.querySelectorAll('.nav-item').forEach(item => {
             item.classList.remove('active', 'text-green-500');
@@ -95,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetItem.classList.add('active', 'text-green-500');
         targetItem.classList.remove('text-gray-400');
 
+        if (pageName === 'page-playlist') renderPlaylist();
         if (pageName === 'page-favorites') renderFavorites();
         if (pageName === 'page-top') renderTopCharts();
     };
@@ -105,8 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (error) { console.error('Ошибка загрузки плейлиста:', error); return; }
         state.originalPlaylist = data;
         state.playlist = [...state.originalPlaylist];
-        renderPlaylist();
-        if (state.playlist.length > 0 && state.currentTrackIndex === -1) loadTrack(0, false);
+        if (state.playlist.length > 0 && state.currentTrackIndex === -1) {
+            loadTrack(0, false);
+        }
     };
 
     const fetchFavorites = async () => {
@@ -117,7 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- RENDERING ---
-    const renderTrackList = (container, tracks, filter = '', notFoundMessage, playAction) => {
+    const renderTrackList = (container, tracks, filter = '', notFoundMessage, options = {}) => {
+        if (!container) return;
         container.innerHTML = '';
         const filteredTracks = tracks.filter(track => 
             (track.title || '').toLowerCase().includes(filter) || 
@@ -130,17 +137,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         filteredTracks.forEach(track => {
-            const trackIndex = state.playlist.findIndex(p => p.id === track.id);
+            const trackIndexInMasterPlaylist = state.playlist.findIndex(p => p.id === track.id);
             const isFavorite = state.favorites.includes(track.id);
             const item = document.createElement('div');
             item.className = 'flex items-center justify-between p-3 rounded-lg hover:bg-gray-800 cursor-pointer';
-            if (trackIndex === state.currentTrackIndex) item.classList.add('bg-gray-800');
+            if (trackIndexInMasterPlaylist === state.currentTrackIndex) item.classList.add('bg-gray-800');
 
             item.innerHTML = `
                 <div class="flex items-center space-x-4 overflow-hidden">
                     <img src="${track.album_art_url || 'https://via.placeholder.com/40'}" class="w-10 h-10 rounded-md flex-shrink-0"/>
                     <div class="truncate">
-                        <div class="font-semibold truncate ${trackIndex === state.currentTrackIndex && state.isPlaying ? 'text-green-400' : ''}">${track.title || 'Без названия'}</div>
+                        <div class="font-semibold truncate ${trackIndexInMasterPlaylist === state.currentTrackIndex && state.isPlaying ? 'text-green-400' : ''}">${track.title || 'Без названия'}</div>
                         <div class="text-sm text-gray-400 truncate">${track.artist || 'Неизвестен'}</div>
                     </div>
                 </div>
@@ -149,56 +156,53 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="favorite-btn text-gray-500 hover:text-red-500 transition p-2" data-track-id="${track.id}">
                         <i class="${isFavorite ? 'fas text-red-500' : 'far'} fa-heart"></i>
                     </button>
-                    ${container === dom.playlistContainer ? '<button class="delete-btn text-gray-500 hover:text-red-500 transition p-2"><i class="fas fa-trash-alt"></i></button>' : ''}
+                    ${options.showDelete ? '<button class="delete-btn text-gray-500 hover:text-red-500 transition p-2"><i class="fas fa-trash-alt"></i></button>' : ''}
                 </div>
             `;
+            
+            item.addEventListener('click', (e) => {
+                 if (e.target.closest('.delete-btn') || e.target.closest('.favorite-btn')) return;
+                 if (trackIndexInMasterPlaylist !== -1) {
+                    loadTrack(trackIndexInMasterPlaylist, true);
+                 }
+                 document.querySelector('.nav-item[data-page="page-player"]').click();
+            });
 
-            item.addEventListener('click', (e) => playAction(e, track));
             item.querySelector('.favorite-btn')?.addEventListener('click', () => toggleFavorite(track.id));
-            item.querySelector('.delete-btn')?.addEventListener('click', () => deleteTrack(track));
+            if(options.showDelete) {
+                item.querySelector('.delete-btn')?.addEventListener('click', () => deleteTrack(track));
+            }
 
             container.appendChild(item);
         });
     };
 
-    const renderPlaylist = () => {
+    const renderPlaylist = (filter = '') => {
         const notFound = `<div class="text-center p-4 text-gray-500">Треки не найдены.</div>`;
-        renderTrackList(dom.playlistContainer, state.playlist, '', notFound, (e, track) => {
-            if (e.target.closest('.delete-btn') || e.target.closest('.favorite-btn')) return;
-            const trackIndex = state.playlist.findIndex(p => p.id === track.id);
-            loadTrack(trackIndex, true);
-        });
+        renderTrackList(dom.playlistList, state.playlist, filter, notFound, { showDelete: true });
     };
 
     const renderFavorites = (filter = '') => {
         const favoriteTracks = state.originalPlaylist.filter(track => state.favorites.includes(track.id));
         const notFound = `<div class="flex flex-col items-center text-center text-gray-500 mt-16"><i class="fas fa-heart-broken text-6xl mb-4"></i><p class="text-lg">Избранных треков не найдено.</p></div>`;
-        renderTrackList(dom.favoritesList, favoriteTracks, filter, notFound, (e, track) => {
-            if (e.target.closest('.favorite-btn')) { 
-                toggleFavorite(track.id).then(() => renderFavorites(dom.searchFavoritesInput.value.toLowerCase()));
-                return; 
-            }
-            const trackIndex = state.playlist.findIndex(p => p.id === track.id);
-            if (trackIndex !== -1) loadTrack(trackIndex, true);
-            document.querySelector('.nav-item[data-page="page-player"]').click();
-        });
+        renderTrackList(dom.favoritesList, favoriteTracks, filter, notFound);
     };
 
     const renderTopCharts = async (filter = '') => {
-        const { data, error } = await supabaseClient.from('music').select('*').order('play_count', { ascending: false });
-        if (error) { console.error('Error fetching top charts:', error); return; }
-        state.topCharts = data;
+        if(state.topCharts.length === 0) {
+            const { data, error } = await supabaseClient.from('music').select('*').order('play_count', { ascending: false });
+            if (error) { console.error('Error fetching top charts:', error); return; }
+            state.topCharts = data;
+        }
         const notFound = `<div class="flex flex-col items-center text-center text-gray-500 mt-16"><i class="fas fa-trophy text-6xl mb-4"></i><p class="text-lg">Пока никто не слушал музыку.</p></div>`;
-        renderTrackList(dom.topChartsList, state.topCharts, filter, notFound, (e, track) => {
-             if (e.target.closest('.favorite-btn')) { 
-                toggleFavorite(track.id).then(() => renderTopCharts(dom.searchTopInput.value.toLowerCase()));
-                return; 
-            }
-            const trackIndex = state.playlist.findIndex(p => p.id === track.id);
-            if (trackIndex !== -1) loadTrack(trackIndex, true);
-            document.querySelector('.nav-item[data-page="page-player"]').click();
-        });
+        renderTrackList(dom.topChartsList, state.topCharts, filter, notFound);
     };
+
+    const updateAllLists = () => {
+        if (dom.searchPlaylistInput) renderPlaylist(dom.searchPlaylistInput.value.toLowerCase());
+        if (dom.searchFavoritesInput) renderFavorites(dom.searchFavoritesInput.value.toLowerCase());
+        if (dom.searchTopInput) renderTopCharts(dom.searchTopInput.value.toLowerCase());
+    }
 
     // --- FAVORITES LOGIC ---
     const toggleFavorite = async (trackId) => {
@@ -214,12 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (error) console.error('Ошибка добавления в избранное:', error);
             else state.favorites.push(trackId);
         }
-        renderPlaylist();
-        if (!document.getElementById('page-favorites').classList.contains('hidden')) renderFavorites(dom.searchFavoritesInput.value.toLowerCase());
-        if (!document.getElementById('page-top').classList.contains('hidden')) renderTopCharts(dom.searchTopInput.value.toLowerCase());
+        updateAllLists();
     };
 
-    // --- TRACK MANAGEMENT ---
+    // --- PLAYER LOGIC ---
     const loadTrack = async (index, andPlay = true) => {
         if (index === state.currentTrackIndex && audio.src) { if(andPlay) playTrack(); return; }
         if (index < 0 || index >= state.playlist.length) return;
@@ -228,14 +230,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const track = state.playlist[index];
 
         const { error } = await supabaseClient.rpc('increment_play_count', { track_id_to_inc: track.id });
-        if (error) console.error('Error incrementing play count:', error);
-        else track.play_count = (track.play_count || 0) + 1;
+        if (error) {
+            console.error('Error incrementing play count:', error);
+        } else {
+            const trackInOriginal = state.originalPlaylist.find(t => t.id === track.id);
+            if(trackInOriginal) trackInOriginal.play_count = (trackInOriginal.play_count || 0) + 1;
+            const trackInTop = state.topCharts.find(t => t.id === track.id);
+            if(trackInTop) trackInTop.play_count = (trackInTop.play_count || 0) + 1;
+        }
 
         dom.trackTitle.textContent = track.title || 'Без названия';
         dom.trackArtist.textContent = track.artist || 'Неизвестен';
         audio.src = track.url;
         dom.albumArt.src = track.album_art_url || 'https://via.placeholder.com/300';
-        renderPlaylist();
+        
+        updateAllLists();
+
         if (andPlay) playTrack();
     };
 
@@ -245,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.isPlaying = true;
             dom.playBtnIcon.classList.replace('fa-play-circle', 'fa-pause-circle');
             dom.albumArt.classList.add('pulsing');
-            renderPlaylist();
+            updateAllLists();
         }).catch(e => console.error("Ошибка воспроизведения:", e));
     };
 
@@ -254,11 +264,13 @@ document.addEventListener('DOMContentLoaded', () => {
         audio.pause();
         dom.playBtnIcon.classList.replace('fa-pause-circle', 'fa-play-circle');
         dom.albumArt.classList.remove('pulsing');
-        renderPlaylist();
+        updateAllLists();
     };
 
-     const prevTrack = () => {
-        const newIndex = state.isShuffle ? Math.floor(Math.random() * state.playlist.length) : (state.currentTrackIndex - 1 + state.playlist.length) % state.playlist.length;
+    const prevTrack = () => {
+        const newIndex = state.isShuffle 
+            ? Math.floor(Math.random() * state.playlist.length)
+            : (state.currentTrackIndex - 1 + state.playlist.length) % state.playlist.length;
         loadTrack(newIndex, true);
     };
 
@@ -272,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTrack(newIndex, true);
     };
 
-    // --- UI & UX ---
+    // --- UI & UX HELPERS ---
     const updateProgress = () => {
         if (!audio.duration) return;
         const { duration, currentTime } = audio;
@@ -295,9 +307,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
-    const showLoading = (show) => dom.loadingSpinner.classList.toggle('hidden', !show);
+    const showLoading = (show) => {
+        if(dom.loadingSpinner) dom.loadingSpinner.classList.toggle('hidden', !show);
+    }
 
-    // --- UPLOAD LOGIC ---
+    // --- UPLOAD & DELETE LOGIC ---
     const sanitizeFileName = (fileName) => {
         const cyrillicToLatinMap = {
             'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
@@ -306,24 +320,25 @@ document.addEventListener('DOMContentLoaded', () => {
             'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
         };
         return fileName.toLowerCase()
-            .split('').map(char => cyrillicToLatinMap[char] || char).join('') // Transliterate
-            .replace(/\s+/g, '_') // Replace spaces with _
-            .replace(/[^a-z0-9_.-]/g, '') // Remove all non-alphanumeric chars except _, ., -
-            .replace(/__+/g, '_'); // Replace multiple __ with single _
+            .split('').map(char => cyrillicToLatinMap[char] || char).join('')
+            .replace(/\s+/g, '_').replace(/[^a-z0-9_.-]/g, '').replace(/__+/g, '_');
     };
 
     const validateUploadForm = () => {
+        if (!dom.uploadBtn || !dom.uploadTitle) return;
         dom.uploadBtn.disabled = !(state.selectedAudioFile && dom.uploadTitle.value.trim() !== '');
     };
 
     const resetUploadForm = () => {
-        dom.uploadForm.reset();
+        if(dom.uploadForm) dom.uploadForm.reset();
         state.selectedAudioFile = null;
         state.selectedArtFile = null;
-        dom.audioFileName.textContent = '';
-        dom.artFileName.textContent = '';
-        dom.uploadProgress.style.display = 'none';
-        dom.uploadProgress.value = 0;
+        if(dom.audioFileName) dom.audioFileName.textContent = '';
+        if(dom.artFileName) dom.artFileName.textContent = '';
+        if(dom.uploadProgress) {
+            dom.uploadProgress.style.display = 'none';
+            dom.uploadProgress.value = 0;
+        }
         validateUploadForm();
     };
 
@@ -334,97 +349,109 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.uploadProgress.style.display = 'block';
         dom.uploadProgress.value = 0;
 
-        // 1. Sanitize and upload audio file
         const sanitizedAudioName = sanitizeFileName(state.selectedAudioFile.name);
         const audioFilePath = `${Date.now()}_${sanitizedAudioName}`;
-        const { error: audioError } = await supabaseClient.storage.from('music').upload(audioFilePath, state.selectedAudioFile, { 
-            contentType: state.selectedAudioFile.type || 'audio/mpeg', upsert: false 
-        });
-
+        const { error: audioError } = await supabaseClient.storage.from('music').upload(audioFilePath, state.selectedAudioFile);
         if (audioError) {
             alert(`Ошибка загрузки аудио: ${audioError.message}`);
-            console.error("Audio upload error:", audioError);
-            showLoading(false);
-            validateUploadForm();
-            return;
+            showLoading(false); validateUploadForm(); return;
         }
         const { data: { publicUrl: audioPublicUrl } } = supabaseClient.storage.from('music').getPublicUrl(audioFilePath);
         dom.uploadProgress.value = 50;
 
-        // 2. Sanitize and upload album art (if selected)
         let artPublicUrl = null;
         if (state.selectedArtFile) {
             const sanitizedArtName = sanitizeFileName(state.selectedArtFile.name);
             const artFilePath = `art_${Date.now()}_${sanitizedArtName}`;
-            const { error: artError } = await supabaseClient.storage.from('music').upload(artFilePath, state.selectedArtFile, { 
-                contentType: state.selectedArtFile.type || 'image/jpeg', upsert: false 
-            });
-
+            const { error: artError } = await supabaseClient.storage.from('music').upload(artFilePath, state.selectedArtFile);
             if (artError) {
-                // Non-critical error, we can proceed without album art
                 console.warn('Не удалось загрузить обложку (продолжаем):', artError.message);
             } else {
-                const { data: { publicUrl } } = supabaseClient.storage.from('music').getPublicUrl(artFilePath);
-                artPublicUrl = publicUrl;
+                artPublicUrl = supabaseClient.storage.from('music').getPublicUrl(artFilePath).data.publicUrl;
             }
         }
         dom.uploadProgress.value = 100;
 
-        // 3. Insert into database
-        const { error: dbError } = await supabaseClient.from('music').insert([{
+        const { data: newTrack, error: dbError } = await supabaseClient.from('music').insert([{
             title: dom.uploadTitle.value.trim(),
             artist: dom.uploadArtist.value.trim() || 'Неизвестен',
             url: audioPublicUrl,
             album_art_url: artPublicUrl,
             play_count: 0
-        }]).select();
+        }]).select().single();
 
+        showLoading(false);
         if (dbError) {
             alert(`Ошибка сохранения в базу: ${dbError.message}`);
-            console.error("DB insert error:", dbError);
         } else {
-            await fetchPlaylist();
+            state.originalPlaylist.unshift(newTrack);
+            if (!state.isShuffle) state.playlist.unshift(newTrack);
+            updateAllLists(); 
             alert('Трек успешно загружен!');
             resetUploadForm();
-            document.querySelector('.nav-item[data-page="page-player"]').click();
+            document.querySelector('.nav-item[data-page="page-playlist"]').click();
         }
-        showLoading(false);
     };
 
-    const deleteTrack = async (track) => {
-        if (!confirm(`Удалить трек "${track.title}"?`)) return;
+    const deleteTrack = async (trackToDelete) => {
+        if (!confirm(`Удалить трек "${trackToDelete.title}"?`)) return;
         showLoading(true);
+
+        const isCurrentTrack = audio.src === trackToDelete.url;
+        if (isCurrentTrack) { pauseTrack(); audio.src = ''; }
+
         const filesToDelete = [];
-        if (track.url) filesToDelete.push(track.url.split('/').pop());
-        if (track.album_art_url) filesToDelete.push(track.album_art_url.split('/').pop());
-        if(filesToDelete.length > 0) await supabaseClient.storage.from('music').remove(filesToDelete);
-        await supabaseClient.from('music').delete().match({ id: track.id });
-        if (audio.src === track.url) { pauseTrack(); audio.src = ''; }
-        await Promise.all([fetchPlaylist(), fetchFavorites()]);
+        if (trackToDelete.url) filesToDelete.push(trackToDelete.url.split('/').pop());
+        if (trackToDelete.album_art_url) filesToDelete.push(trackToDelete.album_art_url.split('/').pop());
+        if(filesToDelete.length > 0) {
+            await supabaseClient.storage.from('music').remove(filesToDelete);
+        }
+
+        await supabaseClient.from('music').delete().match({ id: trackToDelete.id });
+
+        state.originalPlaylist = state.originalPlaylist.filter(t => t.id !== trackToDelete.id);
+        state.playlist = state.playlist.filter(t => t.id !== trackToDelete.id);
+        state.topCharts = state.topCharts.filter(t => t.id !== trackToDelete.id);
+        
+        if(isCurrentTrack) {
+             state.currentTrackIndex = -1;
+             if(state.playlist.length > 0) loadTrack(0, false);
+             else {
+                dom.trackTitle.textContent = 'Трек не загружен';
+                dom.trackArtist.textContent = 'Загрузите музыку';
+                dom.albumArt.src = 'https://via.placeholder.com/300';
+             }
+        }
+
+        updateAllLists();
         showLoading(false);
     };
 
     // --- EVENT LISTENERS ---
     const setupEventListeners = () => {
-        dom.playBtn.addEventListener('click', () => state.isPlaying ? pauseTrack() : playTrack());
-        dom.prevBtn.addEventListener('click', prevTrack);
-        dom.nextBtn.addEventListener('click', () => nextTrack(true));
+        dom.playBtn?.addEventListener('click', () => state.isPlaying ? pauseTrack() : playTrack());
+        dom.prevBtn?.addEventListener('click', prevTrack);
+        dom.nextBtn?.addEventListener('click', () => nextTrack(true));
         audio.addEventListener('timeupdate', updateProgress);
         audio.addEventListener('loadedmetadata', updateProgress);
         audio.addEventListener('ended', () => nextTrack(false));
-        dom.progressContainer.addEventListener('click', setProgress);
-        dom.volumeSlider.addEventListener('input', (e) => audio.volume = e.target.value);
-        dom.navBar.addEventListener('click', handleNavigation);
-        dom.searchFavoritesInput.addEventListener('input', (e) => renderFavorites(e.target.value.toLowerCase()));
-        dom.searchTopInput.addEventListener('input', (e) => renderTopCharts(e.target.value.toLowerCase()));
-        dom.shuffleBtn.addEventListener('click', () => {
+        dom.progressContainer?.addEventListener('click', setProgress);
+        dom.volumeSlider?.addEventListener('input', (e) => audio.volume = e.target.value);
+        dom.navBar?.addEventListener('click', handleNavigation);
+        
+        dom.searchPlaylistInput?.addEventListener('input', (e) => renderPlaylist(e.target.value.toLowerCase()));
+        dom.searchFavoritesInput?.addEventListener('input', (e) => renderFavorites(e.target.value.toLowerCase()));
+        dom.searchTopInput?.addEventListener('input', (e) => renderTopCharts(e.target.value.toLowerCase()));
+        
+        dom.shuffleBtn?.addEventListener('click', () => {
             state.isShuffle = !state.isShuffle;
             dom.shuffleBtn.classList.toggle('text-green-500', state.isShuffle);
             dom.shuffleBtn.classList.toggle('text-gray-400', !state.isShuffle);
             state.playlist = state.isShuffle ? [...state.originalPlaylist].sort(() => 0.5 - Math.random()) : [...state.originalPlaylist];
-            renderPlaylist();
+            if(document.getElementById('page-playlist')?.classList.contains('hidden') === false) renderPlaylist();
         });
-        dom.repeatBtn.addEventListener('click', () => {
+
+        dom.repeatBtn?.addEventListener('click', () => {
             const modes = ['none', 'all', 'one'];
             state.repeatMode = modes[(modes.indexOf(state.repeatMode) + 1) % modes.length];
             const icon = dom.repeatBtn.querySelector('i');
@@ -433,9 +460,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.repeatBtn.classList.toggle('text-gray-400', state.repeatMode === 'none');
         });
 
-        // Upload form listeners
-        dom.uploadTitle.addEventListener('input', validateUploadForm);
+        dom.uploadTitle?.addEventListener('input', validateUploadForm);
         const createDragHandler = (area, fileNameEl, fileStateKey) => {
+            if(!area) return;
             area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('border-green-500'); });
             area.addEventListener('dragleave', (e) => { e.preventDefault(); area.classList.remove('border-green-500'); });
             area.addEventListener('drop', (e) => {
@@ -448,16 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
         createDragHandler(dom.uploadArea, dom.audioFileName, 'selectedAudioFile');
         createDragHandler(dom.uploadArtArea, dom.artFileName, 'selectedArtFile');
 
-        dom.audioFileInput.addEventListener('change', (e) => {
+        dom.audioFileInput?.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if(file) { state.selectedAudioFile = file; dom.audioFileName.textContent = file.name; validateUploadForm(); }
         });
-        dom.artFileInput.addEventListener('change', (e) => {
+        dom.artFileInput?.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if(file) { state.selectedArtFile = file; dom.artFileName.textContent = file.name; validateUploadForm(); }
         });
 
-        dom.uploadBtn.addEventListener('click', handleUpload);
+        dom.uploadBtn?.addEventListener('click', handleUpload);
     };
 
     init();
