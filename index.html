@@ -74,11 +74,8 @@
             <!-- Страница 2: Топ -->
             <div id="page-top" class="page hidden p-4">
                 <h2 class="text-3xl font-bold mb-4">Топ Чарты</h2>
-                <input id="search-top-input" type="text" placeholder="Поиск по топ чартам..." class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
-                <div class="flex flex-col items-center text-center text-gray-500 mt-16">
-                    <i class="fas fa-trophy text-6xl mb-4"></i>
-                    <p class="text-lg">Мировые топ-треки скоро появятся здесь!</p>
-                </div>
+                 <input id="search-top-input" type="text" placeholder="Поиск по топ чартам..." class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+                <div id="top-charts-list" class="w-full space-y-2"></div>
             </div>
 
             <!-- Страница 3: Избранное -->
@@ -109,7 +106,7 @@
                     </div>
 
                     <div>
-                        <label for="upload-artist" class="text-sm font-medium text-gray-400">Исполнитель</A_SECOND_ONE>
+                        <label for="upload-artist" class="text-sm font-medium text-gray-400">Исполнитель</label>
                         <input type="text" id="upload-artist" placeholder="Например, ИИлекс" class="form-input mt-1">
                     </div>
 
@@ -132,7 +129,7 @@
         <nav id="nav-bar" class="fixed bottom-0 left-0 right-0 h-16 bg-gray-900/80 backdrop-blur-lg border-t border-gray-800 flex justify-around z-20">
             <a href="#" class="nav-item active text-green-500 flex flex-col items-center justify-center w-full" data-page="page-player"><i class="fas fa-play-circle text-2xl mb-1"></i><span class="text-xs font-medium">Плеер</span></a>
             <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-top"><i class="fas fa-fire text-2xl mb-1"></i><span class="text-xs font-medium">Топ</span></a>
-            <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-favorites"><i class="fas fa-star text-2xl mb-1"></i><span class="text-xs font-medium">Избранное</span></a>
+            <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-favorites"><i class="fas fa-heart text-2xl mb-1"></i><span class="text-xs font-medium">Избранное</span></a>
             <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-profile"><i class="fas fa-cloud-upload-alt text-2xl mb-1"></i><span class="text-xs font-medium">Загрузка</span></a>
         </nav>
 
