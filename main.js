@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTrackIndex: -1,
         isPlaying: false,
         isShuffle: false,
-        repeatMode: 'none', // 'none', 'one', 'all'
+        repeatMode: 'none',
         user: Telegram.WebApp.initDataUnsafe?.user || null,
         selectedAudioFile: null,
         selectedArtFile: null,
@@ -227,10 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentTrackIndex = index;
         const track = state.playlist[index];
 
-        // Increment play count
         const { error } = await supabaseClient.rpc('increment_play_count', { track_id_to_inc: track.id });
         if (error) console.error('Error incrementing play count:', error);
-        else track.play_count = (track.play_count || 0) + 1; // Update state locally
+        else track.play_count = (track.play_count || 0) + 1;
 
         dom.trackTitle.textContent = track.title || 'Без названия';
         dom.trackArtist.textContent = track.artist || 'Неизвестен';
@@ -259,9 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
      const prevTrack = () => {
-        const newIndex = state.isShuffle 
-            ? Math.floor(Math.random() * state.playlist.length)
-            : (state.currentTrackIndex - 1 + state.playlist.length) % state.playlist.length;
+        const newIndex = state.isShuffle ? Math.floor(Math.random() * state.playlist.length) : (state.currentTrackIndex - 1 + state.playlist.length) % state.playlist.length;
         loadTrack(newIndex, true);
     };
 
@@ -301,6 +298,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const showLoading = (show) => dom.loadingSpinner.classList.toggle('hidden', !show);
 
     // --- UPLOAD LOGIC ---
+    const sanitizeFileName = (fileName) => {
+        const cyrillicToLatinMap = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
+            'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+            'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y',
+            'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+        };
+        return fileName.toLowerCase()
+            .split('').map(char => cyrillicToLatinMap[char] || char).join('') // Transliterate
+            .replace(/\s+/g, '_') // Replace spaces with _
+            .replace(/[^a-z0-9_.-]/g, '') // Remove all non-alphanumeric chars except _, ., -
+            .replace(/__+/g, '_'); // Replace multiple __ with single _
+    };
+
     const validateUploadForm = () => {
         dom.uploadBtn.disabled = !(state.selectedAudioFile && dom.uploadTitle.value.trim() !== '');
     };
@@ -323,23 +334,43 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.uploadProgress.style.display = 'block';
         dom.uploadProgress.value = 0;
 
-        const audioFileName = `${Date.now()}_${state.selectedAudioFile.name}`;
-        const { error: audioError } = await supabaseClient.storage.from('music').upload(audioFileName, state.selectedAudioFile, { contentType: state.selectedAudioFile.type || 'audio/mpeg', upsert: false });
-        if (audioError) { alert('Ошибка загрузки аудиофайла.'); console.error(audioError); showLoading(false); validateUploadForm(); return; }
-        const { data: { publicUrl: audioPublicUrl } } = supabaseClient.storage.from('music').getPublicUrl(audioFileName);
+        // 1. Sanitize and upload audio file
+        const sanitizedAudioName = sanitizeFileName(state.selectedAudioFile.name);
+        const audioFilePath = `${Date.now()}_${sanitizedAudioName}`;
+        const { error: audioError } = await supabaseClient.storage.from('music').upload(audioFilePath, state.selectedAudioFile, { 
+            contentType: state.selectedAudioFile.type || 'audio/mpeg', upsert: false 
+        });
+
+        if (audioError) {
+            alert(`Ошибка загрузки аудио: ${audioError.message}`);
+            console.error("Audio upload error:", audioError);
+            showLoading(false);
+            validateUploadForm();
+            return;
+        }
+        const { data: { publicUrl: audioPublicUrl } } = supabaseClient.storage.from('music').getPublicUrl(audioFilePath);
         dom.uploadProgress.value = 50;
 
+        // 2. Sanitize and upload album art (if selected)
         let artPublicUrl = null;
         if (state.selectedArtFile) {
-            const artFileName = `art_${Date.now()}_${state.selectedArtFile.name}`;
-            const { error: artError } = await supabaseClient.storage.from('music').upload(artFileName, state.selectedArtFile, { contentType: state.selectedArtFile.type || 'image/jpeg', upsert: false });
-            if (!artError) {
-                const { data: { publicUrl } } = supabaseClient.storage.from('music').getPublicUrl(artFileName);
+            const sanitizedArtName = sanitizeFileName(state.selectedArtFile.name);
+            const artFilePath = `art_${Date.now()}_${sanitizedArtName}`;
+            const { error: artError } = await supabaseClient.storage.from('music').upload(artFilePath, state.selectedArtFile, { 
+                contentType: state.selectedArtFile.type || 'image/jpeg', upsert: false 
+            });
+
+            if (artError) {
+                // Non-critical error, we can proceed without album art
+                console.warn('Не удалось загрузить обложку (продолжаем):', artError.message);
+            } else {
+                const { data: { publicUrl } } = supabaseClient.storage.from('music').getPublicUrl(artFilePath);
                 artPublicUrl = publicUrl;
             }
         }
         dom.uploadProgress.value = 100;
 
+        // 3. Insert into database
         const { error: dbError } = await supabaseClient.from('music').insert([{
             title: dom.uploadTitle.value.trim(),
             artist: dom.uploadArtist.value.trim() || 'Неизвестен',
@@ -349,7 +380,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }]).select();
 
         if (dbError) {
-            alert('Ошибка сохранения данных в базу.'); console.error(dbError);
+            alert(`Ошибка сохранения в базу: ${dbError.message}`);
+            console.error("DB insert error:", dbError);
         } else {
             await fetchPlaylist();
             alert('Трек успешно загружен!');
