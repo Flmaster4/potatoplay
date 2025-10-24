@@ -53,15 +53,16 @@ document.addEventListener('DOMContentLoaded', () => {
         userName: document.getElementById('user-name'),
         userUsername: document.getElementById('user-username'),
         showUploadSinglePageBtn: document.getElementById('show-upload-single-page'),
-        uploadSingleTitle: document.getElementById('upload-single-title'),
-        uploadSingleArtist: document.getElementById('upload-single-artist'),
-        uploadSingleAlbum: document.getElementById('upload-single-album'),
-        singleArtFileInput: document.getElementById('single-art-file-input'),
-        singleArtFileName: document.getElementById('single-art-file-name'),
-        singleTrackFileInput: document.getElementById('single-track-file-input'),
-        singleTrackFileName: document.getElementById('single-track-file-name'),
-        uploadSingleBtn: document.getElementById('upload-single-btn'),
-        uploadSingleProgress: document.getElementById('upload-single-progress'),
+        showUploadAlbumPageBtn: document.getElementById('show-upload-album-page'),
+        uploadAlbumForm: document.getElementById('upload-album-form'),
+        uploadAlbumTitle: document.getElementById('upload-album-title'),
+        uploadAlbumArtist: document.getElementById('upload-album-artist'),
+        albumArtFileInput: document.getElementById('album-art-file-input'),
+        albumArtFileName: document.getElementById('album-art-file-name'),
+        albumTracksFileInput: document.getElementById('album-tracks-file-input'),
+        albumTracksFileName: document.getElementById('album-tracks-file-name'),
+        uploadAlbumBtn: document.getElementById('upload-album-btn'),
+        uploadAlbumProgress: document.getElementById('upload-album-progress'),
     };
 
     // --- AUDIO & STATE ---
@@ -77,8 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
         repeatMode: 'none', // 'none', 'all', 'one'
         currentChartType: 'singles', // 'singles', 'albums', 'artists'
         user: window.Telegram?.WebApp?.initDataUnsafe?.user || null,
-        selectedSingleArtFile: null,
-        selectedSingleTrackFile: null,
+        selectedAlbumArtFile: null,
+        selectedAlbumTrackFiles: [],
     };
 
     // --- INITIALIZATION ---
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderUserInfo();
         await Promise.all([fetchPlaylist(), fetchFavorites(), fetchTopCharts()]);
         setupEventListeners();
-        if(dom.uploadSingleProgress) dom.uploadSingleProgress.style.display = 'none';
+        if(dom.uploadAlbumProgress) dom.uploadAlbumProgress.style.display = 'none';
         if(dom.volumeSlider) audio.volume = dom.volumeSlider.value;
         showLoading(false);
     };
@@ -129,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetItem.classList.add('active', 'text-green-500');
         targetItem.classList.remove('text-gray-400');
 
+        // Potentially refresh data on navigation
         if (pageName === 'page-playlist') renderPlaylist();
         if (pageName === 'page-favorites') renderFavorites();
         if (pageName === 'page-top') renderCurrentChart();
@@ -229,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderCurrentChart = () => {
-        const filter = '';
+        const filter = ''; // Add search later if needed
         dom.topSinglesList.classList.toggle('hidden', state.currentChartType !== 'singles');
         dom.topAlbumsList.classList.toggle('hidden', state.currentChartType !== 'albums');
         dom.topArtistsList.classList.toggle('hidden', state.currentChartType !== 'artists');
@@ -344,6 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentTrackIndex = index;
         const track = state.playlist[index];
 
+        // Increment play count (RPC call)
         supabaseClient.rpc('increment_play_count', { track_id_to_inc: track.id }).then(({error}) => {
             if (error) console.error('Ошибка увеличения счетчика прослушиваний:', error);
             else {
@@ -422,95 +425,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if(dom.loadingSpinner) dom.loadingSpinner.classList.toggle('hidden', !show);
     }
 
-    // --- UPLOAD LOGIC ---
-    const handleSingleUpload = async () => {
-        const title = dom.uploadSingleTitle.value.trim();
-        const artist = dom.uploadSingleArtist.value.trim();
-        const albumTitle = dom.uploadSingleAlbum.value.trim();
-        const artFile = state.selectedSingleArtFile;
-        const trackFile = state.selectedSingleTrackFile;
-
-        if (!title || !artist || !trackFile) {
-            alert('Пожалуйста, заполните название трека, имя исполнителя и выберите аудиофайл.');
-            return;
-        }
-
-        showLoading(true);
-        dom.uploadSingleBtn.disabled = true;
-        dom.uploadSingleProgress.style.display = 'block';
-        dom.uploadSingleProgress.value = 0;
-
-        try {
-            let albumArtUrl = null;
-
-            // 1. Check for existing album
-            if (albumTitle) {
-                const { data: existingAlbum, error: existingAlbumError } = await supabaseClient
-                    .from('music')
-                    .select('album_art_url')
-                    .eq('album_title', albumTitle)
-                    .eq('artist', artist)
-                    .limit(1)
-                    .single();
-                
-                if (existingAlbum && existingAlbum.album_art_url) {
-                    albumArtUrl = existingAlbum.album_art_url;
-                }
-            }
-
-            // 2. Upload art if not found or no album title
-            if (!albumArtUrl && artFile) {
-                 const artFilePath = `public/${artist}/${albumTitle || 'singles'}/${Date.now()}_${artFile.name}`.replace(/ /g, '_');
-                 const { data: artData, error: artError } = await supabaseClient.storage.from('album-art').upload(artFilePath, artFile);
-                 if(artError) throw artError;
-                 albumArtUrl = `${supabaseUrl}/storage/v1/object/public/album-art/${artData.path}`;
-            }
-
-            // 3. Upload track
-            const trackFilePath = `public/${artist}/${albumTitle || 'singles'}/${Date.now()}_${trackFile.name}`.replace(/ /g, '_');
-            const { data: trackData, error: trackError } = await supabaseClient.storage.from('music-files').upload(trackFilePath, trackFile, {
-                onProgress: (event) => {
-                    dom.uploadSingleProgress.value = (event.loaded / event.total) * 100;
-                }
-            });
-            if(trackError) throw trackError;
-            const trackUrl = `${supabaseUrl}/storage/v1/object/public/music-files/${trackData.path}`;
-
-            // 4. Insert into database
-            const { error: dbError } = await supabaseClient.from('music').insert({
-                title,
-                artist,
-                album_title: albumTitle || null,
-                url: trackUrl,
-                album_art_url: albumArtUrl
-            });
-            if(dbError) throw dbError;
-
-            alert('Трек успешно загружен!');
-            resetUploadForm();
-            await fetchPlaylist();
-            showPage('page-playlist');
-
-        } catch (error) {
-            console.error('Ошибка загрузки:', error);
-            alert(`Произошла ошибка при загрузке: ${error.message}`);
-        } finally {
-            showLoading(false);
-            dom.uploadSingleBtn.disabled = false;
-            dom.uploadSingleProgress.style.display = 'none';
-        }
-    };
-
-    const resetUploadForm = () => {
-        dom.uploadSingleTitle.value = '';
-        dom.uploadSingleArtist.value = '';
-        dom.uploadSingleAlbum.value = '';
-        dom.singleArtFileInput.value = '';
-        dom.singleTrackFileInput.value = '';
-        dom.singleArtFileName.textContent = '';
-        dom.singleTrackFileName.textContent = '';
-        state.selectedSingleArtFile = null;
-        state.selectedSingleTrackFile = null;
+    // --- UPLOAD LOGIC (NEW) ---
+    const handleAlbumUpload = async () => {
+        // Placeholder logic
+        alert('Функция загрузки альбома в разработке!');
+        console.log('Название альбома:', dom.uploadAlbumTitle.value);
+        console.log('Исполнитель альбома:', dom.uploadAlbumArtist.value);
+        console.log('Файл обложки альбома:', state.selectedAlbumArtFile);
+        console.log('Файлы треков:', state.selectedAlbumTrackFiles);
     };
     
     // --- OPTIONS LOGIC ---
@@ -548,6 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Navigation
         dom.navBar?.addEventListener('click', handleNavigation);
         dom.showUploadSinglePageBtn?.addEventListener('click', () => showPage('page-upload-single'));
+        dom.showUploadAlbumPageBtn?.addEventListener('click', () => showPage('page-upload-album'));
 
         // Chart Navigation
         dom.chartNav?.addEventListener('click', (e) => {
@@ -573,6 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.isShuffle = !state.isShuffle;
             dom.shuffleBtn.classList.toggle('text-green-500', state.isShuffle);
             dom.shuffleBtn.classList.toggle('text-gray-400', !state.isShuffle);
+            // Logic to shuffle playlist will be here
         });
         dom.repeatBtn?.addEventListener('click', () => {
             const modes = ['none', 'all', 'one'];
@@ -583,22 +507,19 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.repeatBtn.classList.toggle('text-gray-400', state.repeatMode === 'none');
         });
 
-        // Single Upload
-        dom.singleArtFileInput?.addEventListener('change', (e) => {
+        // Album Upload
+        dom.albumArtFileInput?.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if(file) {
-                state.selectedSingleArtFile = file;
-                dom.singleArtFileName.textContent = file.name;
+                state.selectedAlbumArtFile = file;
+                dom.albumArtFileName.textContent = file.name;
             }
         });
-        dom.singleTrackFileInput?.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(file) {
-                state.selectedSingleTrackFile = file;
-                dom.singleTrackFileName.textContent = file.name;
-            }
+        dom.albumTracksFileInput?.addEventListener('change', (e) => {
+            state.selectedAlbumTrackFiles = Array.from(e.target.files);
+            dom.albumTracksFileName.textContent = `${state.selectedAlbumTrackFiles.length} треков выбрано`;
         });
-        dom.uploadSingleBtn?.addEventListener('click', handleSingleUpload);
+        dom.uploadAlbumBtn?.addEventListener('click', handleAlbumUpload);
     };
 
     init();
