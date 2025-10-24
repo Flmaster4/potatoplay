@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Melody App</title>
+    <title>Мелодия</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .page { transition: transform 0.3s ease-in-out; }
         .page.hidden { display: none; }
-        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-        .pulsing { animation: pulse 1.5s infinite ease-in-out; }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background-color: #4A5568; border-radius: 10px; }
@@ -23,7 +21,8 @@
             width: 100%;
         }
         .form-input:focus { outline: none; border-color: #38A169; }
-        .nav-item span { font-size: 0.65rem; } /* Smaller text for 5 items */
+        .nav-item span { font-size: 0.65rem; } 
+        .chart-nav-item.active { border-bottom-color: #38A169; color: #38A169; }
     </style>
 </head>
 <body class="bg-gray-900 text-white font-sans antialiased overflow-hidden">
@@ -35,73 +34,189 @@
         </div>
 
         <main id="pages" class="flex-grow overflow-y-auto pb-20">
-            <!-- Страница 1: Плеер -->
+            <!-- Player Page -->
             <div id="page-player" class="page p-4 flex flex-col justify-center h-full">
-                <h1 class="text-3xl font-bold text-center mb-4">Potato player</h1>
-                <div class="flex flex-col items-center text-center space-y-4 flex-shrink-0 mt-8">
-                    <img id="album-art" src="https://via.placeholder.com/300" alt="Обложка альбома" class="w-56 h-56 rounded-2xl shadow-2xl shadow-black">
-                    <div id="track-info">
-                        <h1 id="track-title" class="text-2xl font-bold">Трек не загружен</h1>
-                        <p id="track-artist" class="text-md text-gray-400">Загрузите музыку</p>
+                <div class="flex flex-col items-center justify-center h-full text-center">
+                    <div class="relative">
+                        <img id="album-art" src="https://via.placeholder.com/300" class="w-64 h-64 md:w-80 md:h-80 rounded-lg shadow-lg mb-6">
+                        <div id="player-options-menu" class="hidden absolute top-0 right-0 mt-2 mr-2 bg-gray-800 rounded-md shadow-lg py-1 w-48 z-10">
+                            <a href="#" id="goto-album-btn" class="block px-4 py-2 text-sm text-white hover:bg-gray-700">Перейти к альбому</a>
+                            <a href="#" id="goto-artist-btn" class="block px-4 py-2 text-sm text-white hover:bg-gray-700">Перейти к исполнителю</a>
+                        </div>
                     </div>
-                    <div id="progress-container" class="w-full bg-gray-700 rounded-full h-1.5 cursor-pointer">
-                        <div id="progress-bar" class="bg-green-500 h-1.5 rounded-full w-0"></div>
+                    <h2 id="track-title" class="text-2xl font-bold">Название трека</h2>
+                    <p id="track-artist" class="text-md text-gray-400 mb-4">Имя исполнителя</p>
+                    <div class="w-full max-w-md px-4">
+                        <div id="progress-container" class="w-full h-2 bg-gray-700 rounded-full cursor-pointer mb-1">
+                            <div id="progress-bar" class="h-full bg-green-500 rounded-full"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span id="current-time">0:00</span>
+                            <span id="total-duration">0:00</span>
+                        </div>
                     </div>
-                    <div id="time-container" class="w-full flex justify-between text-xs text-gray-400">
-                        <span id="current-time">0:00</span>
-                        <span id="total-duration">0:00</span>
+                    <div class="flex items-center justify-center space-x-6 mt-4">
+                        <button id="shuffle-btn" class="text-gray-400 hover:text-white"><i class="fas fa-random"></i></button>
+                        <button id="prev-btn" class="text-white text-2xl"><i class="fas fa-step-backward"></i></button>
+                        <button id="play-btn" class="text-white text-5xl"><i class="fas fa-play-circle"></i></button>
+                        <button id="next-btn" class="text-white text-2xl"><i class="fas fa-step-forward"></i></button>
+                        <button id="repeat-btn" class="text-gray-400 hover:text-white"><i class="fas fa-redo"></i></button>
                     </div>
-                    <div id="controls" class="flex items-center justify-center space-x-6 w-full">
-                        <button id="shuffle-btn" class="text-gray-400 hover:text-white transition"><i class="fas fa-random text-xl"></i></button>
-                        <button id="prev-btn"><i class="fas fa-step-backward text-3xl"></i></button>
-                        <button id="play-btn" class="text-green-500"><i class="fas fa-play-circle text-7xl"></i></button>
-                        <button id="next-btn"><i class="fas fa-step-forward text-3xl"></i></button>
-                        <button id="repeat-btn" class="text-gray-400 hover:text-white transition"><i class="fas fa-redo text-xl"></i></button>
-                    </div>
-                     <div id="volume-container" class="w-full flex items-center space-x-3 pt-2">
-                        <i class="fas fa-volume-mute text-gray-500"></i>
-                        <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="1" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer range-sm accent-green-500">
-                        <i class="fas fa-volume-up text-gray-500"></i>
+                    <div class="flex items-center justify-center space-x-4 mt-6 w-full max-w-xs">
+                        <button id="player-favorite-btn" class="text-gray-400 hover:text-red-500"><i class="far fa-heart"></i></button>
+                        <i class="fas fa-volume-down text-gray-400"></i>
+                        <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="1" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <i class="fas fa-volume-up text-gray-400"></i>
+                        <button id="player-options-btn" class="text-gray-400 hover:text-white"><i class="fas fa-ellipsis-h"></i></button>
                     </div>
                 </div>
             </div>
 
-            <!-- Страница 2: Плейлист -->
+            <!-- Playlist Page -->
             <div id="page-playlist" class="page hidden p-4">
                 <h2 class="text-3xl font-bold mb-4">Плейлист</h2>
-                <input id="search-playlist-input" type="text" placeholder="Поиск по плейлисту..." class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
-                <div id="playlist-list" class="w-full space-y-2"></div>
-            </div>
-
-            <!-- Страница 3: Топ -->
-            <div id="page-top" class="page hidden p-4">
-                <h2 class="text-3xl font-bold mb-4">Топ Чарты</h2>
-                 <input id="search-top-input" type="text" placeholder="Поиск по топ чартам..." class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
-                <div id="top-charts-list" class="w-full space-y-2"></div>
-            </div>
-
-            <!-- Страница 4: Избранное -->
-            <div id="page-favorites" class="page hidden p-4">
-                 <h2 class="text-3xl font-bold mb-4">Избранное</h2>
-                 <input id="search-favorites-input" type="text" placeholder="Поиск по избранному..." class="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
-                 <div id="favorites-list" class="w-full space-y-2"></div>
-            </div>
-
-            <!-- Страница 5: Загрузка -->
-            <div id="page-profile" class="page hidden p-4">
-                <h2 class="text-3xl font-bold mb-4">Загрузить музыку</h2>
-                <div id="upload-form" class="w-full max-w-md mx-auto space-y-4">
-                    <!-- ... upload form content is unchanged ... -->
+                <div class="sticky top-0 z-10 mb-4">
+                    <input id="search-playlist-input" type="text" placeholder="Поиск по плейлисту..." class="form-input">
+                </div>
+                <div id="playlist-list" class="space-y-2">
+                    <!-- Track items will be rendered here -->
                 </div>
             </div>
+
+            <!-- Top Charts Page -->
+            <div id="page-top" class="page hidden p-4">
+                <h2 class="text-3xl font-bold mb-4">Топ-чарты</h2>
+                <nav id="chart-nav" class="flex justify-around border-b border-gray-700 mb-4">
+                    <button data-chart-type="singles" class="chart-nav-item active text-green-500 flex-1 py-2 text-center font-semibold border-b-2">Синглы</button>
+                    <button data-chart-type="albums" class="chart-nav-item text-gray-400 flex-1 py-2 text-center font-semibold border-b-2 border-transparent">Альбомы</button>
+                    <button data-chart-type="artists" class="chart-nav-item text-gray-400 flex-1 py-2 text-center font-semibold border-b-2 border-transparent">Исполнители</button>
+                </nav>
+                <div id="top-charts-content">
+                    <div id="top-singles-list"></div>
+                    <div id="top-albums-list" class="hidden"></div>
+                    <div id="top-artists-list" class="hidden"></div>
+                </div>
+            </div>
+
+            <!-- Favorites Page -->
+            <div id="page-favorites" class="page hidden p-4">
+                 <h2 class="text-3xl font-bold mb-4">Избранное</h2>
+                 <div class="sticky top-0 z-10 mb-4">
+                    <input id="search-favorites-input" type="text" placeholder="Поиск по избранному..." class="form-input">
+                </div>
+                <div id="favorites-list" class="space-y-2">
+                    <!-- Favorite track items will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Profile Page -->
+            <div id="page-profile" class="page hidden p-4">
+                <h2 class="text-3xl font-bold mb-4">Профиль</h2>
+                <div id="user-info" class="mb-6 p-4 bg-gray-800 rounded-lg text-center">
+                    <p id="user-name" class="text-xl font-semibold">Загрузка...</p>
+                    <p id="user-username" class="text-sm text-gray-400"></p>
+                </div>
+                <div class="space-y-4">
+                    <button id="show-upload-single-page" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition">Загрузить трек</button>
+                    <!-- <button id="show-upload-album-page" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition">Загрузить альбом</button> -->
+                </div>
+            </div>
+            
+            <!-- Upload Single Track Page -->
+            <div id="page-upload-single" class="page hidden p-4">
+                 <h2 class="text-3xl font-bold mb-4">Загрузить Трек</h2>
+                 <div class="w-full max-w-md mx-auto space-y-4">
+                    <div>
+                        <label for="upload-single-title" class="text-sm font-medium text-gray-400">Название трека</label>
+                        <input type="text" id="upload-single-title" placeholder="Например, Smells Like Teen Spirit" class="form-input mt-1">
+                    </div>
+                    <div>
+                        <label for="upload-single-artist" class="text-sm font-medium text-gray-400">Исполнитель</label>
+                        <input type="text" id="upload-single-artist" placeholder="Например, Nirvana" class="form-input mt-1">
+                    </div>
+                     <div>
+                        <label for="upload-single-album" class="text-sm font-medium text-gray-400">Название альбома (необязательно)</label>
+                        <input type="text" id="upload-single-album" placeholder="Например, Nevermind" class="form-input mt-1">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-400">Обложка (1 файл)</label>
+                         <div class="relative mt-1 w-full h-32 bg-gray-800 border-2 border-dashed border-gray-600 rounded-2xl flex flex-col justify-center items-center text-gray-400 cursor-pointer hover:bg-gray-700 hover:border-blue-500 transition">
+                             <i class="fas fa-image text-4xl mb-2"></i><p>Перетащите или выберите</p>
+                             <input type="file" id="single-art-file-input" accept="image/*" class="absolute inset-0 opacity-0">
+                         </div>
+                         <p id="single-art-file-name" class="text-center text-sm text-gray-300 mt-1"></p>
+                    </div>
+                     <div>
+                        <label class="text-sm font-medium text-gray-400">Аудиофайл (1 файл)</label>
+                         <div class="relative mt-1 w-full h-32 bg-gray-800 border-2 border-dashed border-gray-600 rounded-2xl flex flex-col justify-center items-center text-gray-400 cursor-pointer hover:bg-gray-700 hover:border-blue-500 transition">
+                            <i class="fas fa-music text-4xl mb-2"></i><p>Перетащите или выберите</p>
+                            <input type="file" id="single-track-file-input" accept="audio/*" class="absolute inset-0 opacity-0">
+                        </div>
+                        <p id="single-track-file-name" class="text-center text-sm text-gray-300 mt-1"></p>
+                    </div>
+                    <button id="upload-single-btn" class="w-full bg-blue-600 font-bold py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-500">Загрузить трек</button>
+                    <progress id="upload-single-progress" value="0" max="100" class="w-full mt-3 h-2"></progress>
+                 </div>
+            </div>
+
+            <!-- Upload Album Page (Hidden) -->
+            <div id="page-upload-album" class="page hidden p-4">
+                 <h2 class="text-3xl font-bold mb-4">Загрузить Альбом</h2>
+                 <div id="upload-album-form" class="w-full max-w-md mx-auto space-y-4">
+                    <div class="w-full max-w-md mx-auto space-y-4">
+                        <div>
+                            <label for="upload-album-title" class="text-sm font-medium text-gray-400">Название альбома</label>
+                            <input type="text" id="upload-album-title" placeholder="Например, Nevermind" class="form-input mt-1">
+                        </div>
+                        <div>
+                            <label for="upload-album-artist" class="text-sm font-medium text-gray-400">Исполнитель</label>
+                            <input type="text" id="upload-album-artist" placeholder="Например, Nirvana" class="form-input mt-1">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-400">Обложка альбома (1 файл)</label>
+                             <div class="relative mt-1 w-full h-32 bg-gray-800 border-2 border-dashed border-gray-600 rounded-2xl flex flex-col justify-center items-center text-gray-400 cursor-pointer hover:bg-gray-700 hover:border-blue-500 transition">
+                                 <i class="fas fa-image text-4xl mb-2"></i><p>Перетащите или выберите</p>
+                                 <input type="file" id="album-art-file-input" accept="image/*" class="absolute inset-0 opacity-0">
+                             </div>
+                             <p id="album-art-file-name" class="text-center text-sm text-gray-300 mt-1"></p>
+                        </div>
+                         <div>
+                            <label class="text-sm font-medium text-gray-400">Аудиофайлы (.mp3, .wav, и т.д.)</label>
+                             <div class="relative mt-1 w-full h-32 bg-gray-800 border-2 border-dashed border-gray-600 rounded-2xl flex flex-col justify-center items-center text-gray-400 cursor-pointer hover:bg-gray-700 hover:border-blue-500 transition">
+                                <i class="fas fa-music text-4xl mb-2"></i><p>Перетащите или выберите</p>
+                                <input type="file" id="album-tracks-file-input" accept="audio/*" multiple class="absolute inset-0 opacity-0">
+                            </div>
+                            <p id="album-tracks-file-name" class="text-center text-sm text-gray-300 mt-1"></p>
+                        </div>
+                        <button id="upload-album-btn" class="w-full bg-green-600 font-bold py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-500">Загрузить альбом</button>
+                        <progress id="upload-album-progress" value="0" max="100" class="w-full mt-3 h-2"></progress>
+                     </div>
+                 </div>
+            </div>
+
         </main>
 
         <nav id="nav-bar" class="fixed bottom-0 left-0 right-0 h-16 bg-gray-900/80 backdrop-blur-lg border-t border-gray-800 flex justify-around z-20">
-            <a href="#" class="nav-item active text-green-500 flex flex-col items-center justify-center w-full" data-page="page-player"><i class="fas fa-play-circle text-xl mb-1"></i><span>Плеер</span></a>
-            <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-playlist"><i class="fas fa-list-ul text-xl mb-1"></i><span>Плейлист</span></a>
-            <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-top"><i class="fas fa-fire text-xl mb-1"></i><span>Топ</span></a>
-            <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-favorites"><i class="fas fa-heart text-xl mb-1"></i><span>Избранное</span></a>
-            <a href="#" class="nav-item text-gray-400 flex flex-col items-center justify-center w-full" data-page="page-profile"><i class="fas fa-cloud-upload-alt text-xl mb-1"></i><span>Загрузка</span></a>
+            <button data-page="page-player" class="nav-item flex-1 flex flex-col items-center justify-center text-green-500 active">
+                <i class="fas fa-play text-xl"></i>
+                <span class="mt-1">Плеер</span>
+            </button>
+            <button data-page="page-playlist" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400">
+                <i class="fas fa-music text-xl"></i>
+                <span class="mt-1">Плейлист</span>
+            </button>
+            <button data-page="page-top" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400">
+                <i class="fas fa-chart-line text-xl"></i>
+                <span class="mt-1">Чарты</span>
+            </button>
+            <button data-page="page-favorites" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400">
+                <i class="fas fa-heart text-xl"></i>
+                <span class="mt-1">Избранное</span>
+            </button>
+            <button data-page="page-profile" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400">
+                <i class="fas fa-user text-xl"></i>
+                <span class="mt-1">Профиль</span>
+            </button>
         </nav>
 
     </div>
