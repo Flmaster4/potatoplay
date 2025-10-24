@@ -474,13 +474,17 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.uploadSingleProgress.value = 0;
 
         try {
-            const artFilePath = `public/${state.user.id}/${Date.now()}-${artFile.name}`;
+            // Кодируем имя файла для обложки
+            const encodedArtFileName = encodeURIComponent(`${Date.now()}-${artFile.name}`);
+            const artFilePath = `public/${state.user.id}/${encodedArtFileName}`;
             const { error: artError } = await supabaseClient.storage.from('music').upload(artFilePath, artFile);
             if (artError) throw artError;
             const { data: { publicUrl: artPublicUrl } } = supabaseClient.storage.from('music').getPublicUrl(artFilePath);
             dom.uploadSingleProgress.value = 33;
 
-            const trackFilePath = `public/${state.user.id}/${Date.now()}-${trackFile.name}`;
+            // Кодируем имя файла для трека
+            const encodedTrackFileName = encodeURIComponent(`${Date.now()}-${trackFile.name}`);
+            const trackFilePath = `public/${state.user.id}/${encodedTrackFileName}`;
             const { error: trackError } = await supabaseClient.storage.from('music').upload(trackFilePath, trackFile);
             if (trackError) throw trackError;
             const { data: { publicUrl: trackPublicUrl } } = supabaseClient.storage.from('music').getPublicUrl(trackFilePath);
@@ -614,7 +618,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         dom.uploadSingleBtn?.addEventListener('click', handleSingleUpload);
-
 
         // Album Upload
         dom.albumArtFileInput?.addEventListener('change', (e) => {
